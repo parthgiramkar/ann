@@ -95,6 +95,264 @@ for i in range(len(X)):
 
 
 
+import numpy as np
+
+class Linear :
+
+
+    def __init__( self , input , output ) :
+
+
+        self.w = np.random.randn( input , output )
+        self.b = np.random.randn( 1 , output  )
+
+        self.dx = None
+        self.dw = None
+        self.db = None
+
+
+    def forward( self , x ) :
+
+
+        self.x = x
+
+        z = self.x @ self.w + self.b                  # linear_layers             
+
+        return z
+    
+
+    def backward( self , gradient_from_upstream ) :
+
+# gradients wrt to inp , w, b
+
+        self.dx = gradient_from_upstream @ self.w.T
+
+        self.dw =  self.x.T @  gradient_from_upstream 
+
+        self.db = np.sum(gradient_from_upstream , axis=0 , keepdims=True)        # as bias are added acorss diff neurons , so axis=0
+
+
+        return self.dx
+    
+    
+
+# %%
+class Relu : 
+        
+        def __init__(self)      :
+
+                self.x = None
+
+        def forward( self , x)   :
+
+                self.x = x
+
+                return np.maximum(self.x , 0 )
+
+
+        def backward( self , gradient_from_upstream )   :
+
+# loss w.r.t to linearlayer_which is due to Z 
+
+                return gradient_from_upstream * np.where( self.x > 0 , 1 , 0 ) 
+                
+
+# %%
+class Sigmoid  :
+
+    def __init__(self):
+        
+        self.sigm = None
+        self.x = None
+
+    def forward( self , x ) :
+        
+        self.x = x
+        self.sigm =  1 /  ( 1 + np.exp(-self.x) )
+
+        return self.sigm
+    
+    def backward( self , gradient_from_upstream ) :
+
+# loss w.r.t to linearlayer_2 , which is due to Z2 
+
+        return gradient_from_upstream * self.sigm * ( 1 - self.sigm )
+
+# %%
+class MSE :
+
+
+    def __init__(self) :
+     
+        self.ypred = None
+        self.yactual = None
+
+
+    def forward( self , yactual , ypred ) :
+
+        self.ypred = ypred
+        self.yactual = yactual
+
+        loss = np.mean( 0.5 * (yactual - ypred )**2 )                # .mean() means we_have taken each_valuefrom_data
+
+        return loss
+
+
+    def backward( self ) :
+
+# loss w.r.t to ypred_which is due to activation function -i.e relu
+
+        n = np.prod(self.yactual.shape)            # return the dimn,which_gotmultplied
+        return  ( self.ypred - self.yactual ) / n
+
+
+
+# %%
+class training :
+    
+
+    def __init__(self , input_neurons , hidden_neurons , output_neurons ) :
+        
+# passing on to_the layers ,here are 2layers
+
+        self.layer1 = Linear( input_neurons , hidden_neurons ) 
+        self.relu_activation = Relu()
+        self.layer_2 = Linear( hidden_neurons , output_neurons )
+        self.sigmoid_activation = Sigmoid()
+        self.loss_funct = MSE()
+        self.loss_history = []                # plotting purpose
+
+
+    def train( self , x , y ) :
+         
+        
+        epochs = 10000
+        learning_rate = 0.1
+
+        for i in range( epochs ) :
+
+        # weights and bias for first ip layer 
+        
+# Forward Pass
+            
+            z_1 = self.layer1.forward(x)
+            relu_1 = self.relu_activation.forward(z_1)
+
+
+        # weights and bias for hidden layer 
+            z_2 = self.layer_2.forward(relu_1)
+            sigm = self.sigmoid_activation.forward(z_2)
+
+            loss = self.loss_funct.forward( y ,  sigm )
+            self.loss_history.append(loss)
+            
+            if i%500 == 0 :
+                print(f"Loss at {i}th epoch - {loss}")
+
+# Backward Pass
+
+            grad_relu_2 = self.loss_funct.backward()               # loss w.r.t to activation - Relu (layer2)
+
+            grad_Z_2 = self.sigmoid_activation.backward(grad_relu_2)                     
+
+            grad_relu_1 = self.layer_2.backward(grad_Z_2)            # loss w.r.t to layer1st relu activation func
+
+            grad_Z_1 = self.relu_activation.backward(grad_relu_1)
+
+            grad_X = self.layer1.backward(grad_Z_1)          # loss wrt to input , calc w and bias also
+            
+# optimisation using gradient descent algo
+
+            self.layer1.w = self.layer1.w - learning_rate * self.layer1.dw
+            self.layer1.b = self.layer1.b - learning_rate * self.layer1.db
+
+            self.layer_2.w = self.layer_2.w - learning_rate * self.layer_2.dw
+            self.layer_2.b = self.layer_2.b - learning_rate * self.layer_2.db
+
+
+        print("Loss at 999th epoch - ",loss)
+        print("\n Final Input Weight " , self.layer1.w)
+        print("\n Final Input bias ", self.layer1.b)
+
+        print("\n Final Hidden Weight " , self.layer_2.w)
+        print("\n Final Hidden bias ", self.layer_2.b)
+
+
+
+    def predict( self , x ) :
+
+# Forward pass for prediction purpose
+
+        z1 = self.layer1.forward(x)
+        relu1 = self.relu_activation.forward(z1)
+
+        z2 = self.layer_2.forward(relu1)
+        sigm = self.sigmoid_activation.forward(z2)
+  
+        return sigm                         # Y_prediction                 
+
+
+
+# %%
+# Loading the input and target values
+
+
+if __name__ ==  "__main__" :
+
+    np.random.seed(5)
+# The xor logic gate logic
+
+    x = np.array([
+        [0,0] , [0,1] , [1,0] , [1,1]              # size - ( 4,2)
+    ])
+
+    y = np.array(
+        [0,1,1,0]  
+    )                     #  the xor results size - ( 4 ) , its a list , convert it into 2dform
+
+    y = y.reshape( -1 , 1)            # now shape - ( 4 , 1 ) , column vector
+
+
+    input_neurons = 2
+    hidden_neurons = 4
+    output_neurons = 1
+
+    trn = training( input_neurons , hidden_neurons , output_neurons )
+    trn.train( x , y)
+    
+
+# %%
+trn.predict(x)
+
+# %%
+ans = trn.predict(x)
+np.round(ans)
+
+# %%
+
+
+# %%
+predicted_values = np.round(ans)
+
+
+actual_values = ( y == predicted_values)        # == , means if the values are same , then o/p - 1 , else 0
+accuracy = np.mean( actual_values ) * 100
+print(f"Final Model accuracy - {accuracy}%")
+
+# %%
+
+
+# %%
+import matplotlib.pyplot as plt
+
+plt.xlabel("Epochs")
+plt.ylabel("MSE Loss")
+plt.title("Training Loss Curve (0.01)")
+plt.plot(trn.loss_history)
+
+
+
+
 
 
 
